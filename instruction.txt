@@ -1,0 +1,95 @@
+Chimera ESP32-S3 project: setup instructions
+==============================================
+
+Target board: ESP32-S3-DevKitC-1 N16R8 (16 MB flash, 8 MB Octal PSRAM)
+Framework:    ESP-IDF 6.1
+
+Prerequisites
+-------------
+Activate ESP-IDF in every new terminal session (env vars do not persist):
+
+    . ~/.espressif/v6.1/esp-idf/export.sh
+
+Keep the project path free of "&" (an unquoted "&" breaks the ESP-IDF build).
+
+Step 1: Create the project
+--------------------------
+    idf.py create-project chimera
+
+The template creates main/chimera.c. We renamed it to main/main.c and
+updated main/CMakeLists.txt to use main.c.
+
+Step 2: Set the target
+----------------------
+    idf.py set-target esp32s3
+
+This writes CONFIG_IDF_TARGET="esp32s3" to sdkconfig.
+Note: set-target deletes sdkconfig and build/. Run it before any other
+configuration, or the configuration will be lost.
+
+Step 3: Configure flash and PSRAM
+---------------------------------
+    idf.py menuconfig
+
+Settings changed:
+  - Serial flasher config -> Flash size: 16 MB
+  - Component config -> ESP PSRAM -> enable PSRAM, mode: Octal (OPI)
+
+Verify the result:
+
+    grep -E '^CONFIG_IDF_TARGET=|^CONFIG_ESPTOOLPY_FLASHSIZE=|^CONFIG_SPIRAM=' sdkconfig
+
+Expected values:
+    CONFIG_IDF_TARGET="esp32s3"
+    CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
+    CONFIG_SPIRAM=y
+    CONFIG_SPIRAM_MODE_OCT=y
+
+Check: sdkconfig must match the board. If the target changes, sdkconfig
+must be regenerated:
+
+    idf.py set-target esp32s3
+    idf.py menuconfig
+
+set-target deletes sdkconfig and build/ and writes a new sdkconfig for
+esp32s3. menuconfig then re-applies the flash size (16 MB) and Octal PSRAM
+settings from Step 3. Run the grep check again afterwards.
+
+To regenerate the build files from the existing sdkconfig without changing
+any settings, run:
+
+    idf.py reconfigure
+
+Current status
+--------------
+Done:
+  - Project created (Step 1)
+  - Target set to esp32s3 (Step 2)
+  - Flash 16 MB and Octal PSRAM enabled (Step 3)
+  - Component components/game_logic/ with feed_pet()
+  - main/CMakeLists.txt requires game_logic
+
+Done since then:
+  - main/main.c: pet loop (hunger 50, feed_pet when < 70, 5 s delay).
+    Main project builds for esp32s3.
+  - .gitignore: build/, sdkconfig.old, managed_components/, dependencies.lock
+  - git init done, no commits yet
+  - test_app/: Unity test project for game_logic. Builds for esp32s3.
+    Files: test_app/CMakeLists.txt (EXTRA_COMPONENT_DIRS, TEST_COMPONENTS
+    "game_logic"; MINIMAL_BUILD removed), test_app/sdkconfig.defaults,
+    test_app/main/CMakeLists.txt + main.c (runner),
+    components/game_logic/test/CMakeLists.txt + test_game_logic.c.
+
+Lessons from test_app:
+  - Check the target first: the PSRAM menu and Octal mode only exist for
+    esp32s3. Wrong target = missing options.
+  - MINIMAL_BUILD hides Kconfig options of components not in REQUIRES.
+  - test/ folder under a component needs its own CMakeLists.txt.
+
+Next:
+  - Flash and run the Unity tests: from test_app/,
+    idf.py -p <PORT> flash monitor
+    Expect "3 Tests 0 Failures 0 Ignored"
+  - Write the remaining tests if any are failing
+  - Commit (after review)
+  - Flash the main project: idf.py -p <PORT> flash monitor
